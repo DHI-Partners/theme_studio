@@ -30,7 +30,7 @@ class StudioAppTest(unittest.TestCase):
     def test_app_depends_on_the_theme_and_ships_its_own_assets(self):
         hooks = HOOKS.read_text(encoding="utf-8")
         self.assertIn('required_apps = ["solvronix_desk"]', hooks)
-        self.assertIn("/assets/theme_studio/css/theme_studio.css?v=20", hooks)
+        self.assertIn("/assets/theme_studio/css/theme_studio.css?v=21", hooks)
         self.assertIn('after_install = "theme_studio.setup.after_install"', hooks)
 
     def test_install_claims_the_bench_theme_only_when_unclaimed(self):
@@ -62,7 +62,7 @@ class StudioAppTest(unittest.TestCase):
             node for node in functions.values()
             if any("whitelist" in ast.unparse(decorator) for decorator in node.decorator_list)
         ]
-        self.assertGreaterEqual(len(whitelisted), 11)
+        self.assertGreaterEqual(len(whitelisted), 10)
         for node in whitelisted:
             first = node.body[1] if isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant) else node.body[0]
             self.assertEqual(ast.unparse(first), "manager_only()", node.name)
@@ -88,8 +88,22 @@ class StudioAppTest(unittest.TestCase):
             "restore_theme_version",
         ):
             self.assertIn("validate_persisted_config", functions[name], name)
-        self.assertIn("validate_referenced_profiles", functions["save_theme_assignments"])
-        self.assertIn("validate_referenced_profiles", functions["save_theme_schedule"])
+
+    def test_one_bench_theme_has_no_user_role_or_scheduled_rules(self):
+        source, functions = api_functions()
+        js = PAGE.read_text(encoding="utf-8")
+        state = ast.get_source_segment(source, functions["studio_state"]) or ""
+
+        for removed in ("save_theme_assignments", "save_theme_schedule", "validate_referenced_profiles"):
+            self.assertNotIn(removed, functions)
+            self.assertNotIn(removed, js)
+        for key in ('"assignments"', '"schedule"', '"options"', '"allow_user_theme"', '"theme_lock"'):
+            self.assertNotIn(key, state)
+        self.assertNotIn('data-action="assignments"', js)
+        self.assertNotIn('data-action="schedule"', js)
+        self.assertNotIn("sts-assignment-reference", CSS.read_text(encoding="utf-8"))
+        self.assertIn("theme_studio.api.set_theme_enabled", js)
+        self.assertIn("set_theme_enabled", functions)
 
     def test_legacy_sync_projects_canonical_chart_colors(self):
         source, functions = api_functions()
@@ -177,7 +191,7 @@ class StudioAppTest(unittest.TestCase):
         for endpoint in (
             "save_theme_draft", "publish_theme_config", "manage_theme_profile",
             "restore_theme_version", "import_theme_profile",
-            "save_theme_assignments", "save_theme_schedule", "clear_theme_cache",
+            "set_theme_enabled", "clear_theme_cache",
         ):
             self.assertIn(f"def {endpoint}", api)
         self.assertIn('"preferred_mode", "Theme mode"', js)

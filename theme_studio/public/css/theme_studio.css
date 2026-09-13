@@ -183,9 +183,6 @@
 .sts-version-list > div { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 9px; border: 1px solid var(--border-color); border-radius: 7px; }
 .sts-version-list span { display: grid; }
 .sts-version-list small { color: var(--text-muted); font-size: 10px; }
-.sts-assignment-reference { display: grid; grid-template-columns: minmax(150px,auto) 1fr; gap: 4px 10px; padding: 9px; border: 1px solid var(--border-color); border-radius: 7px; font-size: 10px; }
-.sts-assignment-reference b { grid-column: 1 / -1; margin-bottom: 3px; }
-.sts-assignment-reference code { color: var(--st-accent); font-size: 9px; }
 
 .sts-workbench { min-width: 0; display: flex; flex-direction: column; }
 .sts-toolbar { height: 55px; display: flex; align-items: center; gap: 16px; padding: 0 22px; border-bottom: 1px solid #dcd8d0; background: rgba(249,247,242,.82); backdrop-filter: blur(12px); }
@@ -440,9 +437,7 @@
 .sts-compare-btn,
 .sts-draft-btn { height: 34px; font-size: 11px; }
 .sts-compare-label { font-size: 10px; }
-.sts-version-list small,
-.sts-assignment-reference { font-size: 12px; }
-.sts-assignment-reference code { font-size: 11px; }
+.sts-version-list small { font-size: 12px; }
 .sts-scene-switch button { height: 32px; font-size: 11px; }
 .sts-toolbar-note { font-size: 12px; }
 

@@ -11,7 +11,7 @@ required_apps = ["solvronix_desk"]
 
 # ── AUTHENTICATED DESK ASSETS ──────────────────────────────────────────────────
 # Query versions are bumped whenever an asset changes to invalidate browser cache.
-app_include_css = ["/assets/theme_studio/css/theme_studio.css?v=20"]
+app_include_css = ["/assets/theme_studio/css/theme_studio.css?v=21"]
 
 # ── INSTALL HOOKS ──────────────────────────────────────────────────────────────
 after_install = "theme_studio.setup.after_install"

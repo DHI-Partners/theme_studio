@@ -28,15 +28,6 @@ def validate_persisted_config(config, base=None):
         frappe.throw(frappe.as_json({"chart_errors": error.errors}))
 
 
-def validate_referenced_profiles(settings, profile_ids):
-    """Revalidate chart payloads before assigning or scheduling profiles."""
-    for profile_id in sorted({value for value in profile_ids if value}):
-        profile = theme_engine.profile_by_id(settings, profile_id)
-        if not profile:
-            frappe.throw(f"Unknown theme profile: {profile_id}")
-        validate_persisted_config(profile["config"])
-
-
 def studio_state(settings=None):
     """Assemble one consistent editor snapshot from normalized stored fields."""
     settings = settings or frappe.get_single("Theme Settings")
@@ -48,19 +39,6 @@ def studio_state(settings=None):
         else published
     )
     versions = theme_engine.json_field(settings, "theme_versions", [])[:theme_engine.MAX_VERSIONS]
-    users = frappe.get_all(
-        "User",
-        filters={"enabled": 1},
-        fields=["name", "full_name"],
-        order_by="full_name asc",
-        limit_page_length=250,
-    )
-    roles = frappe.get_all("Role", pluck="name", order_by="name asc", limit_page_length=250)
-    companies = (
-        frappe.get_all("Company", pluck="name", order_by="name asc", limit_page_length=250)
-        if frappe.db.exists("DocType", "Company")
-        else []
-    )
     configured_chart_ids = set(published.get("chart_overrides", {}).keys())
     configured_chart_ids.update(draft.get("chart_overrides", {}).keys())
     return {
@@ -71,16 +49,11 @@ def studio_state(settings=None):
         ),
         "profiles": theme_engine.profiles(settings),
         "versions": versions,
-        "assignments": theme_engine.assignments(settings),
-        "schedule": theme_engine.schedule(settings),
+        # One theme serves the whole bench: no user, role, company or scheduled rules.
         "flags": {
             "enabled": bool(getattr(settings, "theme_enabled", 1)),
-            "allow_user_theme": bool(getattr(settings, "allow_user_theme", 1)),
-            "theme_lock": bool(getattr(settings, "theme_lock", 0)),
-            "preview_admin_only": bool(getattr(settings, "preview_admin_only", 1)),
             "active_profile": getattr(settings, "active_profile", "") or "",
         },
-        "options": {"users": users, "roles": roles, "companies": companies},
         "chart_schema": chart_config.load_schema(),
         "chart_registry": chart_registry.list_chart_sources(
             getattr(frappe.session, "user", None),
@@ -292,62 +265,18 @@ def import_theme_profile(payload, name=None):
     )
 
 
-# ── 6. ASSIGNMENTS / SITE POLICY ───────────────────────────────────────────────
-# Validate every referenced profile before saving user, role, or company maps.
+# ── 6. SITE POLICY ─────────────────────────────────────────────────────────────
+# One theme serves the whole bench, so the only policy left is switching it on/off.
 @frappe.whitelist()
-def save_theme_assignments(data, flags=None):
+def set_theme_enabled(enabled):
     manager_only()
     settings = frappe.get_single("Theme Settings")
-    raw = theme_engine.parse_json(data, {})
-    clean = {
-        "default": str(raw.get("default") or "")[:80],
-        "users": theme_engine.clean_string_map(raw.get("users"), 180),
-        "roles": theme_engine.clean_string_map(raw.get("roles"), 140),
-        "companies": theme_engine.clean_string_map(raw.get("companies"), 180),
-    }
-    valid_profiles = {profile["id"] for profile in theme_engine.profiles(settings)}
-    referenced_profiles = {clean["default"]} | set(clean["users"].values()) | set(clean["roles"].values()) | set(clean["companies"].values())
-    missing_profiles = sorted(profile for profile in referenced_profiles if profile and profile not in valid_profiles)
-    if missing_profiles:
-        frappe.throw("Unknown theme profile: " + ", ".join(missing_profiles))
-    validate_referenced_profiles(settings, referenced_profiles)
-    settings.theme_assignments = frappe.as_json(clean)
-    flag_data = theme_engine.parse_json(flags, {}) if flags else {}
-    for field in ("theme_enabled", "allow_user_theme", "theme_lock", "preview_admin_only"):
-        if field in flag_data:
-            settings.set(field, int(theme_engine.bool_value(flag_data[field])))
+    settings.theme_enabled = int(theme_engine.bool_value(enabled))
     settings.save()
     return studio_state(settings)
 
 
-# ── 7. SCHEDULED ACTIVATION ────────────────────────────────────────────────────
-@frappe.whitelist()
-def save_theme_schedule(data):
-    manager_only()
-    settings = frappe.get_single("Theme Settings")
-    raw = theme_engine.parse_json(data, {})
-    clean = {
-        "enabled": theme_engine.bool_value(raw.get("enabled")),
-        "profile_id": str(raw.get("profile_id") or "")[:80],
-        "activate_at": str(raw.get("activate_at") or "")[:40],
-        "deactivate_at": str(raw.get("deactivate_at") or "")[:40],
-    }
-    if clean["profile_id"] and not theme_engine.profile_by_id(settings, clean["profile_id"]):
-        frappe.throw("Scheduled theme profile not found")
-    validate_referenced_profiles(settings, [clean["profile_id"]])
-    try:
-        activate_at = frappe.utils.get_datetime(clean["activate_at"]) if clean["activate_at"] else None
-        deactivate_at = frappe.utils.get_datetime(clean["deactivate_at"]) if clean["deactivate_at"] else None
-    except Exception:
-        frappe.throw("Invalid theme schedule date")
-    if activate_at and deactivate_at and deactivate_at <= activate_at:
-        frappe.throw("Theme deactivation must be later than activation")
-    settings.theme_schedule = frappe.as_json(clean)
-    settings.save()
-    return studio_state(settings)
-
-
-# ── 8. CACHE CONTROL ───────────────────────────────────────────────────────────
+# ── 7. CACHE CONTROL ───────────────────────────────────────────────────────────
 @frappe.whitelist()
 def clear_theme_cache(reload_desk=0):
     manager_only()

@@ -148,7 +148,7 @@ solvronix_desk.theme_studio_sections = [
 	},
 	{
 		id: "operations", title: "Profiles & deployment", index: "12",
-		description: "Presets, drafts, assignments, versions, import/export, scheduling, and cache controls.",
+		description: "Presets, drafts, versions, import/export, and cache controls.",
 		controls: [["operations", "Operations", "operations"]],
 	},
 ];
@@ -314,7 +314,7 @@ solvronix_desk.ThemeStudio = class ThemeStudio {
 			'<aside class="sts-controls">' +
 				'<div class="sts-eyebrow">' + __("DESIGN SYSTEM") + "</div>" +
 				'<h2>' + __("Make it unmistakably yours.") + "</h2>" +
-				'<p class="sts-intro">' + __("Every theme token, assignment, and deployment control in one place.") + "</p>" +
+				'<p class="sts-intro">' + __("Every theme token and deployment control in one place.") + "</p>" +
 				this._profile_bar_html() +
 				'<div class="sts-control-search"><span>⌕</span><input type="search" id="sts-control-search" placeholder="' + __("Search theme controls…") + '"></div>' +
 				this._tabs_html() +
@@ -1093,8 +1093,6 @@ solvronix_desk.ThemeStudio = class ThemeStudio {
 			'<button type="button" data-action="import">⇧<span>' + __("Import theme") + "</span></button>" +
 			'<button type="button" data-action="export">⇩<span>' + __("Export JSON") + "</span></button>" +
 			'<button type="button" data-action="versions">↶<span>' + __("Version history") + "</span></button>" +
-			'<button type="button" data-action="assignments">◎<span>' + __("User / role themes") + "</span></button>" +
-			'<button type="button" data-action="schedule">◷<span>' + __("Schedule activation") + "</span></button>" +
 			'<button type="button" data-action="clear-cache">↻<span>' + __("Clear cache & reload") + "</span></button>" +
 			'<button type="button" data-action="reset-all">×<span>' + __("Reset to Frappe default") + "</span></button>" +
 			'<button type="button" data-action="toggle-theme">' + (flags.enabled ? "◉" : "○") + "<span>" +
@@ -2288,8 +2286,6 @@ solvronix_desk.ThemeStudio = class ThemeStudio {
 		this.$root.on("change", "#sts-import-file", function () { self.import_theme(this.files && this.files[0]); });
 		this.$root.on("click", '[data-action="export"]', function () { self.export_theme(); });
 		this.$root.on("click", '[data-action="versions"]', function () { self.show_versions(); });
-		this.$root.on("click", '[data-action="assignments"]', function () { self.show_assignments(); });
-		this.$root.on("click", '[data-action="schedule"]', function () { self.show_schedule(); });
 		this.$root.on("click", '[data-action="clear-cache"]', function () { self.clear_cache(); });
 		this.$root.on("click", '[data-action="reset-all"]', function () { self._reset_all(); });
 		this.$root.on("click", '[data-action="toggle-theme"]', function () { self.toggle_theme_enabled(); });
@@ -2626,103 +2622,6 @@ solvronix_desk.ThemeStudio = class ThemeStudio {
 		dialog.show();
 	}
 
-	_profile_options() {
-		return ((this.state && this.state.profiles) || []).map(function (item) {
-			return { label: item.name, value: item.id };
-		});
-	}
-
-	show_assignments() {
-		var self = this, data = this.state.assignments || {}, flags = this.state.flags || {};
-		var profileOptions = [""].concat(this._profile_options().map(function (item) { return item.value; })).join("\n");
-		var profileReference = '<div class="sts-assignment-reference"><b>' + __("Available profile IDs") + '</b>' +
-			this._profile_options().map(function (item) {
-				return '<code>' + self._esc(item.value) + '</code><span>' + self._esc(item.label) + '</span>';
-			}).join("") + '</div>';
-		var dialog = new frappe.ui.Dialog({
-			title: __("Theme assignments & permissions"),
-			fields: [
-				{ fieldname: "default", fieldtype: "Select", label: __("Default site profile"), options: profileOptions, default: data.default || "" },
-				{ fieldname: "theme_enabled", fieldtype: "Check", label: __("Enable published theme"), default: flags.enabled ? 1 : 0 },
-				{ fieldname: "allow_user_theme", fieldtype: "Check", label: __("Allow users to choose"), default: flags.allow_user_theme ? 1 : 0 },
-				{ fieldname: "theme_lock", fieldtype: "Check", label: __("Administrator theme lock"), default: flags.theme_lock ? 1 : 0 },
-				{ fieldname: "preview_admin_only", fieldtype: "Check", label: __("Administrator-only draft preview"), default: flags.preview_admin_only ? 1 : 0 },
-				{ fieldname: "reference", fieldtype: "HTML", options: profileReference },
-				{ fieldname: "users", fieldtype: "Code", label: __("User assignments (email → profile id JSON)"), options: "JSON", default: JSON.stringify(data.users || {}, null, 2) },
-				{ fieldname: "roles", fieldtype: "Code", label: __("Role assignments (role → profile id JSON)"), options: "JSON", default: JSON.stringify(data.roles || {}, null, 2) },
-				{ fieldname: "companies", fieldtype: "Code", label: __("Company assignments (company → profile id JSON)"), options: "JSON", default: JSON.stringify(data.companies || {}, null, 2) },
-			],
-			primary_action_label: __("Save assignments"),
-			primary_action: function (values) {
-				try {
-					var assignments = {
-						default: values.default || "",
-						users: JSON.parse(values.users || "{}"),
-						roles: JSON.parse(values.roles || "{}"),
-						companies: JSON.parse(values.companies || "{}"),
-					};
-					self._save_assignments(assignments, values, dialog);
-				} catch (error) {
-					frappe.show_alert({ message: __("Invalid assignment JSON: ") + error.message, indicator: "red" }, 5);
-				}
-			},
-		});
-		dialog.show();
-	}
-
-	_save_assignments(assignments, flags, dialog) {
-		var self = this;
-		frappe.call({
-			method: "theme_studio.api.save_theme_assignments",
-			args: {
-				data: assignments,
-				flags: {
-					theme_enabled: !!flags.theme_enabled,
-					allow_user_theme: !!flags.allow_user_theme,
-					theme_lock: !!flags.theme_lock,
-					preview_admin_only: !!flags.preview_admin_only,
-				},
-			},
-			freeze: true,
-			callback: function (response) {
-				if (!response.message) return;
-				self.state = response.message;
-				dialog && dialog.hide();
-				self.render();
-				frappe.show_alert({ message: __("Theme assignments saved"), indicator: "green" });
-			},
-		});
-	}
-
-	show_schedule() {
-		var self = this, schedule = this.state.schedule || {};
-		var profileOptions = [""].concat(this._profile_options().map(function (item) { return item.value; })).join("\n");
-		var dialog = new frappe.ui.Dialog({
-			title: __("Schedule theme activation"),
-			fields: [
-				{ fieldname: "enabled", fieldtype: "Check", label: __("Enable schedule"), default: schedule.enabled ? 1 : 0 },
-				{ fieldname: "profile_id", fieldtype: "Select", label: __("Theme profile"), options: profileOptions, default: schedule.profile_id || "" },
-				{ fieldname: "activate_at", fieldtype: "Datetime", label: __("Activate at"), default: schedule.activate_at || "" },
-				{ fieldname: "deactivate_at", fieldtype: "Datetime", label: __("Deactivate at"), default: schedule.deactivate_at || "" },
-			],
-			primary_action_label: __("Save schedule"),
-			primary_action: function (values) {
-				frappe.call({
-					method: "theme_studio.api.save_theme_schedule",
-					args: { data: values },
-					freeze: true,
-					callback: function (response) {
-						if (!response.message) return;
-						self.state = response.message;
-						dialog.hide();
-						frappe.show_alert({ message: __("Theme schedule saved"), indicator: "green" });
-					},
-				});
-			},
-		});
-		dialog.show();
-	}
-
 	clear_cache() {
 		frappe.call({
 			method: "theme_studio.api.clear_theme_cache",
@@ -2732,10 +2631,23 @@ solvronix_desk.ThemeStudio = class ThemeStudio {
 		});
 	}
 
+	/* One theme serves the whole bench, so the only site policy left is on/off. */
 	toggle_theme_enabled() {
-		var flags = $.extend({}, this.state.flags || {});
-		flags.theme_enabled = !flags.enabled;
-		this._save_assignments(this.state.assignments || {}, flags);
+		var self = this, enabled = !((this.state && this.state.flags) || {}).enabled;
+		frappe.call({
+			method: "theme_studio.api.set_theme_enabled",
+			args: { enabled: enabled ? 1 : 0 },
+			freeze: true,
+			callback: function (response) {
+				if (!response.message) return;
+				self.state = response.message;
+				self.render();
+				frappe.show_alert({
+					message: enabled ? __("Custom theme enabled") : __("Custom theme disabled"),
+					indicator: "green",
+				});
+			},
+		});
 	}
 
 	/* ── 10. BLOCK ORDER AND UNDO/REDO HISTORY ───────────────────────────────
@@ -3194,7 +3106,6 @@ solvronix_desk.ThemeStudio = class ThemeStudio {
 						config: r.message.config,
 						preferred_mode: r.message.config.preferred_mode,
 						chart_schema: self._chart_schema(),
-						schedule: self.state && self.state.schedule,
 					},
 				}));
 				self.original_dark = document.documentElement.getAttribute("data-theme") === "dark";

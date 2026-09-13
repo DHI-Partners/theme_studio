@@ -119,7 +119,7 @@ Chart editing changes presentation and supported constructor options only. It do
 
 ### Profiles and deployment
 
-| Profile assignment | Publishing, scheduling, and recovery |
+| Profiles | Publishing and recovery |
 |:---:|:---:|
 | ![Profiles and deployment part one](screenshots/theme-studio/controls/12-profiles-deployment-part-01.png) | ![Profiles and deployment part two](screenshots/theme-studio/controls/12-profiles-deployment-part-02.png) |
 

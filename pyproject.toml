@@ -1,0 +1,20 @@
+[project]
+name = "theme_studio"
+authors = [
+    { name = "Habeebe", email = "dosnet2200@gmail.com" }
+]
+description = "Visual editor for the bench-wide Solvronix Desk theme"
+requires-python = ">=3.10.0"
+readme = "README.md"
+dynamic = ["version"]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/DHI-Partners/theme_studio"
+
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.bench.frappe-dependencies]
+frappe = ">=15.0.0,<17.0.0"
